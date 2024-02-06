@@ -120,6 +120,11 @@ function modules_menu {
         read -rp "    Substitutions filter: [y/n]: " -e -i "n" SUBSTITUTIONS_FILTER
     done
 
+    # Cache purge
+    while [[ $CACHE_PURGE != "y" && $CACHE_PURGE != "n" ]]; do
+        read -rp "    Cache purge: [y/n]: " -e -i "n" CACHE_PURGE
+    done
+
     if [[ $SSL_FINGERPRINT == "y" ]]; then
         OPENSSL=openssl
     else
@@ -234,6 +239,13 @@ function install_nginx {
         cd /tmp/nginx-installer/ngx_http_substitutions_filter_module || exit 1
     fi
 
+    # Download cache purge
+    if [[ $CACHE_PURGE == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone https://github.com/FRiCKLE/ngx_cache_purge.git
+        cd /tmp/nginx-installer/ngx_cache_purge || exit 1
+    fi
+
     # Download OpenSSL
     cd /tmp/nginx-installer || exit 1
     if [[ $OPENSSL == "openssl" ]]; then
@@ -298,6 +310,13 @@ function install_nginx {
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
             echo "--add-module=/tmp/nginx-installer/ngx_http_substitutions_filter_module"
+        )
+    fi
+
+    if [[ $CACHE_PURGE == "y" ]]; then
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo "--add-module=/tmp/nginx-installer/ngx_cache_purge"
         )
     fi
 
@@ -466,6 +485,7 @@ if [[ $1 == "--headless" ]]; then
     BROTLI=${BROTLI:-"n"}
     TEST_COOKIE=${TEST_COOKIE:-"n"}
     SUBSTITUTIONS_FILTER=${SUBSTITUTIONS_FILTER:-"n"}
+    CACHE_PURGE=${CACHE_PURGE:-"n"}
 
     # Uninstallation variables
     RM_CONF=${RM_CONF:-"y"}

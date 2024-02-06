@@ -18,6 +18,7 @@
 - [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module): Custom HTTP headers
 - [testcookie-nginx-module](https://github.com/kyprizel/testcookie-nginx-module): simple robot mitigation module using cookie based challenge/response
 - [nginx_substitutions_filter](https://github.com/yaoweibin/ngx_http_substitutions_filter_module): filter module which can do both reguar expression and fixed string substitutions on response bodies
+- [ngx_cache_purge](https://github.com/FRiCKLE/ngx_cache_purge): adds ability to purge content from FastCGI, proxy, SCGI and uWSGI caches.
 
 And more can be added in the future...
 
@@ -74,6 +75,9 @@ TEST_COOKIE=n
 # y: install
 # n: skip
 SUBSTITUTIONS_FILTER=n
+# y: install
+# n: skip
+CACHE_PURGE=n
 
 # Uninstallation variables
 # y: remove configuration
