@@ -35,7 +35,10 @@ NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
     --with-http_slice_module \
     --with-http_stub_status_module \
     --with-http_realip_module \
-    --with-http_sub_module
+    --with-http_sub_module \
+    --with-stream_ssl_module \
+    --with-debug \
+    --with-stream
 "}
 
 # Main menu
@@ -101,30 +104,42 @@ function modules_menu {
         read -rp "    Header more: [y/n]: " -e -i "n" HEADER_MORE
     done
 
-    # OpenSSL package to use
-    echo ""
-    echo "OpenSSL package to use:"
-    echo ""
-    echo "    1) OpenSSL 3.2.1"
-    echo "    2) LibreSSL 3.8.2"
-    echo ""
-
-    while [[ $OPENSSL != "1" && $OPENSSL != "2" ]]; do
-        read -rp "Choice: [1-2]: " -e -i "1" OPENSSL
+    # SSL fingerprint
+    while [[ $SSL_FINGERPRINT != "y" && $SSL_FINGERPRINT != "n" ]]; do
+        read -rp "    SSL fingerprint: [y/n]: " -e -i "n" SSL_FINGERPRINT
     done
 
-    case $OPENSSL in
-    1)
+    if [[ $SSL_FINGERPRINT == "y" ]]; then
         OPENSSL=openssl
-        ;;
-    2)
-        OPENSSL=libressl
-        ;;
-    *)
-        echo "Invalid choice"
-        exit 1
-        ;;
-    esac
+    else
+        echo ""
+        echo "*************************************************"
+
+        # OpenSSL package to use
+        echo ""
+        echo "OpenSSL package to use:"
+        echo ""
+        echo "    1) OpenSSL 3.2.1"
+        echo "    2) LibreSSL 3.8.2"
+        echo ""
+
+        while [[ $OPENSSL != "1" && $OPENSSL != "2" ]]; do
+            read -rp "Choice: [1-2]: " -e -i "1" OPENSSL
+        done
+
+        case $OPENSSL in
+        1)
+            OPENSSL=openssl
+            ;;
+        2)
+            OPENSSL=libressl
+            ;;
+        *)
+            echo "Invalid choice"
+            exit 1
+            ;;
+        esac
+    fi
 
     echo ""
     echo "*************************************************"
@@ -154,13 +169,31 @@ function install_nginx {
         cd /tmp/nginx-installer/headers-more-nginx-module || exit 1
     fi
 
+    # Download SSL fingerprint
+    if [[ $SSL_FINGERPRINT == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone https://github.com/phuslu/nginx-ssl-fingerprint.git
+        cd /tmp/nginx-installer/nginx-ssl-fingerprint || exit 1
+    fi
+
     # Download OpenSSL
     cd /tmp/nginx-installer || exit 1
     if [[ $OPENSSL == "openssl" ]]; then
         git clone -b openssl-3.2.1 https://github.com/openssl/openssl
         cd /tmp/nginx-installer/openssl || exit 1
+
+        if [[ $SSL_FINGERPRINT == "y" ]]; then
+            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/openssl.openssl-3.2.patch || exit 1
+            patch -p1 < openssl.openssl-3.2.patch || exit 1
+        fi
+        
         ./config || exit 1
     else
+        if [[ $SSL_FINGERPRINT == "y" ]]; then
+            echo "LibreSSL is not supported with SSL fingerprint"
+            exit 1
+        fi
+
         git clone -b v3.8.2 https://github.com/libressl/portable
         cd /tmp/nginx-installer/portable || exit 1
         cd ../ && mv portable libressl && cd libressl || exit 1
@@ -182,6 +215,13 @@ function install_nginx {
         )
     fi
 
+    if [[ $SSL_FINGERPRINT == 'y' ]]; then
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo "--add-module=/tmp/nginx-installer/nginx-ssl-fingerprint"
+        )
+    fi
+
     if [[ $OPENSSL == "openssl" ]]; then
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
@@ -199,7 +239,20 @@ function install_nginx {
     git clone -b release-$NGINX_VERSION https://github.com/nginx/nginx.git
     cd /tmp/nginx-installer/nginx || exit 1
 
-    ./auto/configure $NGINX_COMPILATION_OPTIONS || exit 1
+    if [[ $SSL_FINGERPRINT == "y" ]]; then
+        if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
+            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.25.patch -O nginx.patch || exit 1
+        else
+            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.24.patch -O nginx.patch || exit 1
+        fi
+
+        patch -p1 < nginx.patch || exit 1
+    fi
+
+    ./auto/configure $NGINX_COMPILATION_OPTIONS \
+        --with-cc-opt="-O -fno-omit-frame-pointer -Wno-deprecated-declarations -Wno-ignored-qualifiers" \
+        --with-ld-opt="-Wl,-rpath,/usr/local/lib/" || exit 1
+
     make -j$(nproc) || exit 1
     make install || exit 1
 
@@ -235,16 +288,23 @@ function install_nginx {
         mkdir -p /etc/nginx/conf.d
     fi
 
+    # Cleanup
+    rm -rf /tmp/nginx-installer
+
     systemctl restart nginx
+
+    SERVICE_STATUS=$(systemctl status nginx | grep Active | awk '{print $2}')
+
+    if [[ $SERVICE_STATUS != "active" ]]; then
+        echo "An error occurred while installing NGINX"
+        exit 1
+    fi
 
     # Block installation via apt
     if [[ $(lsb_release -si) == "Debian" ]] || [[ $(lsb_release -si) == "Ubuntu" ]]; then
         cd /etc/apt/preferences.d/ || exit 1
         echo -e 'Package: nginx*\nPin: release *\nPin-Priority: -1' > nginx-block
     fi
-
-    # Cleanup
-    rm -rf /tmp/nginx-installer
 
     echo "NGINX installed successfully!"
 }
@@ -255,8 +315,9 @@ if [[ $1 == "--headless" ]]; then
 
     MODE=${MODE:-1}
     NGINX_VERSION=${NGINX_VERSION:-$NGINX_STABLE_VERSION}
-    HEADER_MORE=${HEADER_MORE:-"y"}
-    OPENSSL=${OPENSSL:-"libressl"}
+    HEADER_MORE=${HEADER_MORE:-"n"}
+    SSL_FINGERPRINT=${SSL_FINGERPRINT:-"n"}
+    OPENSSL=${OPENSSL:-"openssl"}
 else
     main_menu
     nginx_version
