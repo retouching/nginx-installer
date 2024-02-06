@@ -193,7 +193,7 @@ function install_nginx {
         cd /tmp/nginx-installer/openssl || exit 1
 
         if [[ $SSL_FINGERPRINT == "y" ]]; then
-            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/openssl.openssl-3.2.patch || exit 1
+            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/openssl.openssl-3.2.patch -O openssl.openssl-3.2.patch || exit 1
             patch -p1 < openssl.openssl-3.2.patch || exit 1
         fi
         
@@ -272,7 +272,7 @@ function install_nginx {
     # Create NGINX service if not exists
     if [[ ! -e /lib/systemd/system/nginx.service ]]; then
         cd /lib/systemd/system/ || exit 1
-        wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx.service || exit 1
+        wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx.service -O nginx.service || exit 1
         systemctl enable nginx
     fi
 
@@ -371,7 +371,7 @@ function uninstall_nginx() {
 
 # Update script function
 function update_script() {
-    wget https://raw.githubusercontent.com/retouching/nginx-installer/master/nginx-installer.sh
+    wget https://raw.githubusercontent.com/retouching/nginx-installer/master/nginx-installer.sh -O nginx-autoinstall.sh
     chmod +x nginx-autoinstall.sh
     clear
     ./nginx-installer.sh
