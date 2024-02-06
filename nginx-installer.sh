@@ -1,8 +1,8 @@
 #!/bin/bash
 
 if [[ $EUID -ne 0 ]]; then
-	echo -e "Sorry, you need to run this as root"
-	exit 1
+    echo -e "Sorry, you need to run this as root"
+    exit 1
 fi
 
 # Versions
@@ -13,29 +13,29 @@ OPENSSL_VERSION="3.2.1"
 
 # Define NGINX compilation options
 NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
-	--prefix=/etc/nginx \
-	--sbin-path=/usr/sbin/nginx \
-	--conf-path=/etc/nginx/nginx.conf \
-	--error-log-path=/var/log/nginx/error.log \
-	--http-log-path=/var/log/nginx/access.log \
-	--pid-path=/var/run/nginx.pid \
-	--lock-path=/var/run/nginx.lock \
-	--http-client-body-temp-path=/var/cache/nginx/client_temp \
-	--http-proxy-temp-path=/var/cache/nginx/proxy_temp \
-	--http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
-	--user=nginx \
-	--group=nginx \
+    --prefix=/etc/nginx \
+    --sbin-path=/usr/sbin/nginx \
+    --conf-path=/etc/nginx/nginx.conf \
+    --error-log-path=/var/log/nginx/error.log \
+    --http-log-path=/var/log/nginx/access.log \
+    --pid-path=/var/run/nginx.pid \
+    --lock-path=/var/run/nginx.lock \
+    --http-client-body-temp-path=/var/cache/nginx/client_temp \
+    --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+    --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+    --user=nginx \
+    --group=nginx \
 
     --with-threads \
-	--with-file-aio \
-	--with-http_ssl_module \
-	--with-http_v2_module \
-	--with-http_mp4_module \
-	--with-http_auth_request_module \
-	--with-http_slice_module \
-	--with-http_stub_status_module \
-	--with-http_realip_module \
-	--with-http_sub_module
+    --with-file-aio \
+    --with-http_ssl_module \
+    --with-http_v2_module \
+    --with-http_mp4_module \
+    --with-http_auth_request_module \
+    --with-http_slice_module \
+    --with-http_stub_status_module \
+    --with-http_realip_module \
+    --with-http_sub_module
 "}
 
 # Main menu
@@ -85,6 +85,9 @@ function nginx_version {
         exit 1
         ;;
     esac
+
+    echo ""
+    echo "*************************************************"
 }
 
 # Modules menu
@@ -122,9 +125,19 @@ function modules_menu {
         exit 1
         ;;
     esac
+
+    echo ""
+    echo "*************************************************"
 }
 
 function install_nginx {
+    clear
+
+    echo "Starting installation of NGINX $NGINX_VERSION in 5 seconds..."
+    echo "Press CTRL+C to cancel"
+
+    sleep 5
+
     # Cleanup previous installations if any
     rm -rf /tmp/nginx-installer
     mkdir -p /tmp/nginx-installer || exit 1
@@ -153,27 +166,27 @@ function install_nginx {
         cd ../ && mv portable libressl && cd libressl || exit 1
         ./autogen.sh || exit 1
         ./configure \
-			LDFLAGS=-lrt \
-			CFLAGS=-fstack-protector-strong \
-			--prefix=/tmp/nginx-installer/libressl/.openssl/ \
-			--enable-shared=no \
+            LDFLAGS=-lrt \
+            CFLAGS=-fstack-protector-strong \
+            --prefix=/tmp/nginx-installer/libressl/.openssl/ \
+            --enable-shared=no \
             || exit 1
         make install-strip -j "$(nproc)" || exit 1
     fi
 
     # Apply modules to NGINX compilation options
     if [[ $HEADER_MORE == 'y' ]]; then
-		NGINX_COMPILATION_OPTIONS=$(
-			echo "$NGINX_COMPILATION_OPTIONS"
-			echo "--add-module=/tmp/nginx-installer/headers-more-nginx-module"
-		)
-	fi
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo "--add-module=/tmp/nginx-installer/headers-more-nginx-module"
+        )
+    fi
 
     if [[ $OPENSSL == "openssl" ]]; then
         NGINX_COMPILATION_OPTIONS=$(
-			echo "$NGINX_COMPILATION_OPTIONS"
-			echo --with-openssl=/tmp/nginx-installer/openssl
-		)
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo --with-openssl=/tmp/nginx-installer/openssl
+        )
     else
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
@@ -191,44 +204,44 @@ function install_nginx {
     make install || exit 1
 
     # remove debugging symbols
-	strip -s /usr/sbin/nginx
+    strip -s /usr/sbin/nginx
 
     # Create NGINX service if not exists
     if [[ ! -e /lib/systemd/system/nginx.service ]]; then
-		cd /lib/systemd/system/ || exit 1
-		wget https://raw.githubusercontent.com/Angristan/nginx-autoinstall/master/conf/nginx.service -O nginx.service || exit 1
-		systemctl enable nginx
-	fi
+        cd /lib/systemd/system/ || exit 1
+        wget https://raw.githubusercontent.com/Angristan/nginx-autoinstall/master/conf/nginx.service -O nginx.service || exit 1
+        systemctl enable nginx
+    fi
 
     # Create NGINX log rotation if not exists
     if [[ ! -e /etc/logrotate.d/nginx ]]; then
-		cd /etc/logrotate.d/ || exit 1
-		wget https://raw.githubusercontent.com/Angristan/nginx-autoinstall/master/conf/nginx-logrotate -O nginx
-	fi
+        cd /etc/logrotate.d/ || exit 1
+        wget https://raw.githubusercontent.com/Angristan/nginx-autoinstall/master/conf/nginx-logrotate -O nginx
+    fi
 
     # Create NGINX cache folder if not exists
     if [[ ! -d /var/cache/nginx ]]; then
-		mkdir -p /var/cache/nginx
-	fi
+        mkdir -p /var/cache/nginx
+    fi
 
     # Create NGINX config folder if not exists
     if [[ ! -d /etc/nginx/sites-available ]]; then
-		mkdir -p /etc/nginx/sites-available
-	fi
-	if [[ ! -d /etc/nginx/sites-enabled ]]; then
-		mkdir -p /etc/nginx/sites-enabled
-	fi
-	if [[ ! -d /etc/nginx/conf.d ]]; then
-		mkdir -p /etc/nginx/conf.d
-	fi
+        mkdir -p /etc/nginx/sites-available
+    fi
+    if [[ ! -d /etc/nginx/sites-enabled ]]; then
+        mkdir -p /etc/nginx/sites-enabled
+    fi
+    if [[ ! -d /etc/nginx/conf.d ]]; then
+        mkdir -p /etc/nginx/conf.d
+    fi
 
     systemctl restart nginx
 
     # Block installation via apt
     if [[ $(lsb_release -si) == "Debian" ]] || [[ $(lsb_release -si) == "Ubuntu" ]]; then
-		cd /etc/apt/preferences.d/ || exit 1
-		echo -e 'Package: nginx*\nPin: release *\nPin-Priority: -1' > nginx-block
-	fi
+        cd /etc/apt/preferences.d/ || exit 1
+        echo -e 'Package: nginx*\nPin: release *\nPin-Priority: -1' > nginx-block
+    fi
 
     # Cleanup
     rm -rf /tmp/nginx-installer
