@@ -269,7 +269,7 @@ function install_nginx {
     # Create NGINX log rotation if not exists
     if [[ ! -e /etc/logrotate.d/nginx ]]; then
         cd /etc/logrotate.d/ || exit 1
-        wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx-logrotate.txt -O nginx
+        wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx-logrotate -O nginx
     fi
 
     # Create NGINX cache folder if not exists
