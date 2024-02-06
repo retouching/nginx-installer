@@ -10,6 +10,7 @@ NGINX_MAINLINE_VERSION="1.25.3"
 NGINX_STABLE_VERSION="1.24.0"
 LIBRESSL_VERSION="3.8.2"
 OPENSSL_VERSION="3.2.1"
+CURRENT_SCRIPT_VERSION="0.1"
 
 # Define NGINX compilation options
 NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
@@ -43,6 +44,8 @@ NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
 
 # Main menu
 function main_menu {
+    NEWEST_SCRIPT_VERSION=$(curl -s https://raw.githubusercontent.com/retouching/nginx-installer/master/VERSION)
+
     echo "*************************************************"
     echo "*                                               *"
     echo "* NGINX Installer - Bodybuilded nginx installer *"
@@ -51,7 +54,13 @@ function main_menu {
     echo ""
     echo "    1) Install or update NGINX"
     echo "    2) Uninstall NGINX"
-    echo "    3) Update this script"
+
+    if [[ $CURRENT_SCRIPT_VERSION != $NEWEST_SCRIPT_VERSION ]]; then
+        echo "    3) Update this script [New version available!]"
+    else
+        echo "    3) Update this script"
+    fi
+
     echo "    4) Exit"
     echo ""
 
@@ -63,7 +72,7 @@ function main_menu {
     echo "*************************************************"
 }
 
-# Nginx version menu
+# Nginx version menu function
 function nginx_version {
     echo ""
     echo "NGINX versions available:"
@@ -93,7 +102,7 @@ function nginx_version {
     echo "*************************************************"
 }
 
-# Modules menu
+# Modules menu function
 function modules_menu {
     echo ""
     echo "Choose modules to install with NGINX:"
@@ -145,6 +154,7 @@ function modules_menu {
     echo "*************************************************"
 }
 
+# Install NGINX function
 function install_nginx {
     clear
 
@@ -293,7 +303,7 @@ function install_nginx {
 
     systemctl restart nginx
 
-    SERVICE_STATUS=$(systemctl status nginx | grep Active | awk '{print $2}')
+    SERVICE_STATUS=$(systemctl is-active nginx)
 
     if [[ $SERVICE_STATUS != "active" ]]; then
         echo "An error occurred while installing NGINX"
@@ -306,12 +316,26 @@ function install_nginx {
         echo -e 'Package: nginx*\nPin: release *\nPin-Priority: -1' > nginx-block
     fi
 
+    echo ""
     echo "NGINX installed successfully!"
 }
 
+# Uninstall NGINX function
 function uninstall_nginx() {
+    while [[ $RM_CONF != "y" && $RM_CONF != "n" ]]; do
+        read -rp "Delete configuration: [y/n]: " -e -i "y" RM_CONF
+    done
+
+    while [[ $RM_LOGS != "y" && $RM_LOGS != "n" ]]; do
+        read -rp "Delete logs: [y/n]: " -e -i "y" RM_LOGS
+    done
+
+    SERVICE_STATUS=$(systemctl is-active nginx)
+    
     # Stop Nginx
-	systemctl stop nginx
+    if [[ $SERVICE_STATUS == "active" ]]; then
+        systemctl stop nginx
+    fi
 
 	# Removing Nginx files and modules files
 	rm -rf /usr/local/src/nginx \
@@ -327,12 +351,12 @@ function uninstall_nginx() {
 	systemctl daemon-reload
 
 	# Remove conf files
-	if [[ $RM_CONF == 'y' ]]; then
+	if [[ $RM_CONF == "y" ]]; then
 		rm -rf /etc/nginx/
 	fi
 
 	# Remove logs
-	if [[ $RM_LOGS == 'y' ]]; then
+	if [[ $RM_LOGS == "y" ]]; then
 		rm -rf /var/log/nginx
 	fi
 
@@ -341,14 +365,16 @@ function uninstall_nginx() {
 		rm -f /etc/apt/preferences.d/nginx-block
 	fi
     
+    echo ""
     echo "NGINX uninstalled successfully!"
 }
 
+# Update script function
 function update_script() {
     wget https://raw.githubusercontent.com/retouching/nginx-installer/master/nginx-installer.sh
     chmod +x nginx-autoinstall.sh
     clear
-    ./nginx-autoinstall.sh
+    ./nginx-installer.sh
 }
 
 # Define variables if script is in headless mode
@@ -368,9 +394,10 @@ if [[ $1 == "--headless" ]]; then
     RM_LOGS=${RM_LOGS:-"n"}
 else
     HEADLESS=false
-
     main_menu
 fi
+
+clear
 
 case $MODE in
 1)
@@ -384,8 +411,8 @@ case $MODE in
 3)
     update_script
     ;;
-5)
-    exit 0
+4)
+    ;;
 *)
     echo "Invalid mode"
     exit 1
