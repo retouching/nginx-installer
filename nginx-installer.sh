@@ -85,19 +85,6 @@ function nginx_version {
         read -rp "Choice: [1-2]: " -e -i "2" NGINX_VERSION
     done
 
-    case $NGINX_VERSION in
-    1)
-        NGINX_VERSION=$NGINX_MAINLINE_VERSION
-        ;;
-    2)
-        NGINX_VERSION=$NGINX_STABLE_VERSION
-        ;;
-    *)
-        echo "Invalid choice"
-        exit 1
-        ;;
-    esac
-
     echo ""
     echo "*************************************************"
 }
@@ -150,19 +137,6 @@ function modules_menu {
         while [[ $OPENSSL != "1" && $OPENSSL != "2" ]]; do
             read -rp "Choice: [1-2]: " -e -i "1" OPENSSL
         done
-
-        case $OPENSSL in
-        1)
-            OPENSSL=openssl
-            ;;
-        2)
-            OPENSSL=libressl
-            ;;
-        *)
-            echo "Invalid choice"
-            exit 1
-            ;;
-        esac
     fi
 
     echo ""
@@ -179,6 +153,32 @@ function install_nginx {
 
         sleep 5
     fi
+
+    case $OPENSSL in
+        1)
+            OPENSSL=openssl
+            ;;
+        2)
+            OPENSSL=libressl
+            ;;
+        *)
+            echo "Invalid choice"
+            exit 1
+            ;;
+    esac
+
+    case $NGINX_VERSION in
+        1)
+            NGINX_VERSION=$NGINX_MAINLINE_VERSION
+            ;;
+        2)
+            NGINX_VERSION=$NGINX_STABLE_VERSION
+            ;;
+        *)
+            echo "Invalid choice"
+            exit 1
+            ;;
+    esac
 
     # Cleanup previous installations if any
     rm -rf /tmp/nginx-installer
@@ -338,6 +338,12 @@ function install_nginx {
     # remove debugging symbols
     strip -s /usr/sbin/nginx
 
+    if [[ ! -e /etc/nginx/nginx.conf ]]; then
+		mkdir -p /etc/nginx
+		cd /etc/nginx || exit 1
+		wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx.conf
+	fi
+
     # Create NGINX service if not exists
     if [[ ! -e /lib/systemd/system/nginx.service ]]; then
         cd /lib/systemd/system/ || exit 1
@@ -441,7 +447,7 @@ function uninstall_nginx() {
 # Update script function
 function update_script() {
     wget https://raw.githubusercontent.com/retouching/nginx-installer/master/nginx-installer.sh -O nginx-installer.sh
-    chmod +x nginx-autoinstall.sh
+    chmod +x nginx-installer.sh
     clear
     ./nginx-installer.sh
 }
@@ -450,13 +456,13 @@ function update_script() {
 if [[ $1 == "--headless" ]]; then
     HEADLESS=true
     
-    MODE=${MODE:-1}
+    MODE=${MODE:-"1"}
 
     # Installation variables
-    NGINX_VERSION=${NGINX_VERSION:-$NGINX_STABLE_VERSION}
+    NGINX_VERSION=${NGINX_VERSION:-"2"}
     HEADER_MORE=${HEADER_MORE:-"n"}
     SSL_FINGERPRINT=${SSL_FINGERPRINT:-"n"}
-    OPENSSL=${OPENSSL:-"openssl"}
+    OPENSSL=${OPENSSL:-"1"}
     BROTLI=${BROTLI:-"n"}
     TEST_COOKIE=${TEST_COOKIE:-"n"}
     SUBSTITUTIONS_FILTER=${SUBSTITUTIONS_FILTER:-"n"}
