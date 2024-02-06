@@ -1,5 +1,5 @@
 <p align="center">
-    <a href="https://github.com/devine-dl/devine">NGINX installer</a>
+    <a href="https://github.com/retouching/nginx-installer">NGINX installer</a>
     <br/>
     <sup><em>Fast and complete NGINX installer</em></sup>
 </p>
