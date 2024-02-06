@@ -10,7 +10,7 @@ NGINX_MAINLINE_VERSION="1.25.3"
 NGINX_STABLE_VERSION="1.24.0"
 LIBRESSL_VERSION="3.8.2"
 OPENSSL_VERSION="3.2.1"
-CURRENT_SCRIPT_VERSION="0.1"
+CURRENT_SCRIPT_VERSION="0.2"
 
 # Define NGINX compilation options
 NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
@@ -118,6 +118,21 @@ function modules_menu {
         read -rp "    SSL fingerprint: [y/n]: " -e -i "n" SSL_FINGERPRINT
     done
 
+    # Brotli
+    while [[ $BROTLI != "y" && $BROTLI != "n" ]]; do
+        read -rp "    Brotli: [y/n]: " -e -i "n" BROTLI
+    done
+
+    # TestCookie
+    while [[ $TEST_COOKIE != "y" && $TEST_COOKIE != "n" ]]; do
+        read -rp "    TestCookie: [y/n]: " -e -i "n" TEST_COOKIE
+    done
+
+    # Substitutions filter
+    while [[ $SUBSTITUTIONS_FILTER != "y" && $SUBSTITUTIONS_FILTER != "n" ]]; do
+        read -rp "    Substitutions filter: [y/n]: " -e -i "n" SUBSTITUTIONS_FILTER
+    done
+
     if [[ $SSL_FINGERPRINT == "y" ]]; then
         OPENSSL=openssl
     else
@@ -158,10 +173,12 @@ function modules_menu {
 function install_nginx {
     clear
 
-    echo "Starting installation of NGINX $NGINX_VERSION in 5 seconds..."
-    echo "Press CTRL+C to cancel"
+    if [[ $HEADLESS != true ]]; then
+        echo "Starting installation of NGINX $NGINX_VERSION in 5 seconds..."
+        echo "Press CTRL+C to cancel"
 
-    sleep 5
+        sleep 5
+    fi
 
     # Cleanup previous installations if any
     rm -rf /tmp/nginx-installer
@@ -184,6 +201,37 @@ function install_nginx {
         cd /tmp/nginx-installer || exit 1
         git clone https://github.com/phuslu/nginx-ssl-fingerprint.git
         cd /tmp/nginx-installer/nginx-ssl-fingerprint || exit 1
+    fi
+
+    # Download Brotli
+    if [[ $BROTLI == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone --recurse-submodules https://github.com/google/ngx_brotli.git
+        cd /tmp/nginx-installer/ngx_brotli || exit 1
+        git submodule update --init --recursive || exit 1
+        cd /tmp/nginx-installer/ngx_brotli/deps/brotli || exit 1
+        mkdir out
+        cd out || exit 1
+        cmake -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_C_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
+            -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" \
+            -DCMAKE_INSTALL_PREFIX=./installed .. || exit 1
+        cmake --build . --config Release --target brotlienc || exit 1
+    fi
+
+    # Download TestCookie
+    if [[ $TEST_COOKIE == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone https://github.com/kyprizel/testcookie-nginx-module.git
+        cd /tmp/nginx-installer/testcookie-nginx-module || exit 1
+    fi
+
+    # Download Substitutions filter
+    if [[ $SUBSTITUTIONS_FILTER == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module.git
+        cd /tmp/nginx-installer/ngx_http_substitutions_filter_module || exit 1
     fi
 
     # Download OpenSSL
@@ -218,17 +266,38 @@ function install_nginx {
     fi
 
     # Apply modules to NGINX compilation options
-    if [[ $HEADER_MORE == 'y' ]]; then
+    if [[ $HEADER_MORE == "y" ]]; then
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
             echo "--add-module=/tmp/nginx-installer/headers-more-nginx-module"
         )
     fi
 
-    if [[ $SSL_FINGERPRINT == 'y' ]]; then
+    if [[ $SSL_FINGERPRINT == "y" ]]; then
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
             echo "--add-module=/tmp/nginx-installer/nginx-ssl-fingerprint"
+        )
+    fi
+
+    if [[ $BROTLI == "y" ]]; then
+		NGINX_COMPILATION_OPTIONS=$(
+			echo "$NGINX_COMPILATION_OPTIONS"
+			echo "--add-module=/tmp/nginx-installer/ngx_brotli"
+		)
+	fi
+
+    if [[ $TEST_COOKIE == "y" ]]; then
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo "--add-module=/tmp/nginx-installer/testcookie-nginx-module"
+        )
+    fi
+
+    if [[ $SUBSTITUTIONS_FILTER == "y" ]]; then
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo "--add-module=/tmp/nginx-installer/ngx_http_substitutions_filter_module"
         )
     fi
 
@@ -313,7 +382,7 @@ function install_nginx {
     # Block installation via apt
     if [[ $(lsb_release -si) == "Debian" ]] || [[ $(lsb_release -si) == "Ubuntu" ]]; then
         cd /etc/apt/preferences.d/ || exit 1
-        echo -e 'Package: nginx*\nPin: release *\nPin-Priority: -1' > nginx-block
+        echo -e "Package: nginx*\nPin: release *\nPin-Priority: -1" > nginx-block
     fi
 
     echo ""
@@ -388,10 +457,13 @@ if [[ $1 == "--headless" ]]; then
     HEADER_MORE=${HEADER_MORE:-"n"}
     SSL_FINGERPRINT=${SSL_FINGERPRINT:-"n"}
     OPENSSL=${OPENSSL:-"openssl"}
+    BROTLI=${BROTLI:-"n"}
+    TEST_COOKIE=${TEST_COOKIE:-"n"}
+    SUBSTITUTIONS_FILTER=${SUBSTITUTIONS_FILTER:-"n"}
 
     # Uninstallation variables
-    RM_CONF=${RM_CONF:-"n"}
-    RM_LOGS=${RM_LOGS:-"n"}
+    RM_CONF=${RM_CONF:-"y"}
+    RM_LOGS=${RM_LOGS:-"y"}
 else
     HEADLESS=false
     main_menu
