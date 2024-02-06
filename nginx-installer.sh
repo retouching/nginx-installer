@@ -262,14 +262,14 @@ function install_nginx {
     # Create NGINX service if not exists
     if [[ ! -e /lib/systemd/system/nginx.service ]]; then
         cd /lib/systemd/system/ || exit 1
-        wget https://raw.githubusercontent.com/Angristan/nginx-autoinstall/master/conf/nginx.service -O nginx.service || exit 1
+        wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx.service || exit 1
         systemctl enable nginx
     fi
 
     # Create NGINX log rotation if not exists
     if [[ ! -e /etc/logrotate.d/nginx ]]; then
         cd /etc/logrotate.d/ || exit 1
-        wget https://raw.githubusercontent.com/Angristan/nginx-autoinstall/master/conf/nginx-logrotate -O nginx
+        wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx-logrotate.txt -O nginx
     fi
 
     # Create NGINX cache folder if not exists
@@ -309,25 +309,83 @@ function install_nginx {
     echo "NGINX installed successfully!"
 }
 
+function uninstall_nginx() {
+    # Stop Nginx
+	systemctl stop nginx
+
+	# Removing Nginx files and modules files
+	rm -rf /usr/local/src/nginx \
+		/usr/sbin/nginx* \
+		/usr/local/bin/luajit* \
+		/usr/local/include/luajit* \
+		/etc/logrotate.d/nginx \
+		/var/cache/nginx \
+		/lib/systemd/system/nginx.service \
+		/etc/systemd/system/multi-user.target.wants/nginx.service
+
+	# Reload systemctl
+	systemctl daemon-reload
+
+	# Remove conf files
+	if [[ $RM_CONF == 'y' ]]; then
+		rm -rf /etc/nginx/
+	fi
+
+	# Remove logs
+	if [[ $RM_LOGS == 'y' ]]; then
+		rm -rf /var/log/nginx
+	fi
+
+	# Remove Nginx APT block
+	if [[ $(lsb_release -si) == "Debian" ]] || [[ $(lsb_release -si) == "Ubuntu" ]]; then
+		rm -f /etc/apt/preferences.d/nginx-block
+	fi
+    
+    echo "NGINX uninstalled successfully!"
+}
+
+function update_script() {
+    wget https://raw.githubusercontent.com/retouching/nginx-installer/master/nginx-installer.sh
+    chmod +x nginx-autoinstall.sh
+    clear
+    ./nginx-autoinstall.sh
+}
+
 # Define variables if script is in headless mode
 if [[ $1 == "--headless" ]]; then
     HEADLESS=true
-
+    
     MODE=${MODE:-1}
+
+    # Installation variables
     NGINX_VERSION=${NGINX_VERSION:-$NGINX_STABLE_VERSION}
     HEADER_MORE=${HEADER_MORE:-"n"}
     SSL_FINGERPRINT=${SSL_FINGERPRINT:-"n"}
     OPENSSL=${OPENSSL:-"openssl"}
+
+    # Uninstallation variables
+    RM_CONF=${RM_CONF:-"n"}
+    RM_LOGS=${RM_LOGS:-"n"}
 else
+    HEADLESS=false
+
     main_menu
-    nginx_version
-    modules_menu
 fi
 
 case $MODE in
 1)
+    nginx_version
+    modules_menu
     install_nginx
     ;;
+2)
+    uninstall_nginx
+    ;;
+3)
+    update_script
+    ;;
+5)
+    exit 0
 *)
     echo "Invalid mode"
     exit 1
