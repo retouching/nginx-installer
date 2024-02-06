@@ -371,7 +371,7 @@ function uninstall_nginx() {
 
 # Update script function
 function update_script() {
-    wget https://raw.githubusercontent.com/retouching/nginx-installer/master/nginx-installer.sh -O nginx-autoinstall.sh
+    wget https://raw.githubusercontent.com/retouching/nginx-installer/master/nginx-installer.sh -O nginx-installer.sh
     chmod +x nginx-autoinstall.sh
     clear
     ./nginx-installer.sh
