@@ -10,7 +10,7 @@ NGINX_MAINLINE_VERSION="1.25.3"
 NGINX_STABLE_VERSION="1.24.0"
 LIBRESSL_VERSION="3.8.2"
 OPENSSL_VERSION="3.2.1"
-CURRENT_SCRIPT_VERSION="0.2"
+CURRENT_SCRIPT_VERSION="0.3"
 
 # Define NGINX compilation options
 NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
@@ -28,6 +28,7 @@ NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
     --group=nginx \
 
     --with-threads \
+    --with-poll_module \
     --with-file-aio \
     --with-http_ssl_module \
     --with-http_v2_module \
@@ -125,24 +126,48 @@ function modules_menu {
         read -rp "    Cache purge: [y/n]: " -e -i "n" CACHE_PURGE
     done
 
-    if [[ $SSL_FINGERPRINT == "y" ]]; then
-        OPENSSL=openssl
-    else
-        echo ""
-        echo "*************************************************"
+    # HTTP3
+    while [[ $HTTP3 != "y" && $HTTP3 != "n" ]]; do
+        read -rp "    Support HTTP/3: [y/n]: " -e -i "n" HTTP3
+    done
 
-        # OpenSSL package to use
-        echo ""
-        echo "OpenSSL package to use:"
-        echo ""
+    echo ""
+    echo "*************************************************"
+
+    # OpenSSL package to use
+    echo ""
+    echo "OpenSSL package to use:"
+    echo ""
+    
+    if [[ $HTTP3 != "y" ]]; then
         echo "    1) OpenSSL 3.2.1"
-        echo "    2) LibreSSL 3.8.2"
-        echo ""
-
-        while [[ $OPENSSL != "1" && $OPENSSL != "2" ]]; do
-            read -rp "Choice: [1-2]: " -e -i "1" OPENSSL
-        done
+    else
+        echo "    1) OpenSSL 3.2.1 [Not compatible with HTTP/3]"
     fi
+
+    echo "    2) OpenSSL 3.1.5 + QUIC"
+
+    if [[ $SSL_FINGERPRINT != "y"]]; then
+        echo "    3) LibreSSL 3.8.2"
+    else
+        echo "    3) LibreSSL 3.8.2 [Not compatible with SSL fingerprint]"
+    fi
+
+    echo ""
+
+    while ; do
+        read -rp "Choice: [1-3]: " -e -i "1" OPENSSL
+
+        if [[ $SSL_FINGERPRINT == "y" && $OPENSSL == "3" ]]; then
+            continue
+        fi
+
+        if [[ $HTTP3 == "y" && $OPENSSL == "1" ]]; then
+            continue
+        fi
+
+        break
+    done
 
     echo ""
     echo "*************************************************"
@@ -150,20 +175,14 @@ function modules_menu {
 
 # Install NGINX function
 function install_nginx {
-    clear
-
-    if [[ $HEADLESS != true ]]; then
-        echo "Starting installation of NGINX $NGINX_VERSION in 5 seconds..."
-        echo "Press CTRL+C to cancel"
-
-        sleep 5
-    fi
-
     case $OPENSSL in
         1)
             OPENSSL=openssl
             ;;
         2)
+            OPENSSL=quic
+            ;;
+        3)
             OPENSSL=libressl
             ;;
         *)
@@ -185,10 +204,25 @@ function install_nginx {
             ;;
     esac
 
+    clear
+
+    if [[ $HEADLESS != true ]]; then
+        echo "Starting installation of NGINX $NGINX_VERSION in 5 seconds..."
+        echo "Press CTRL+C to cancel"
+
+        sleep 5
+    fi
+
     # Cleanup previous installations if any
     rm -rf /tmp/nginx-installer
     mkdir -p /tmp/nginx-installer || exit 1
     cd /tmp/nginx-installer || exit 1
+
+    # Uninstall it first if exist
+    if [[ -f /usr/sbin/nginx ]]; then
+        echo "Uninstalling previous version of NGINX..."
+        uninstall_nginx
+    fi
 
     # Install dependencies
     apt update || exit 1
@@ -249,12 +283,27 @@ function install_nginx {
     # Download OpenSSL
     cd /tmp/nginx-installer || exit 1
     if [[ $OPENSSL == "openssl" ]]; then
-        git clone -b openssl-3.2.1 https://github.com/openssl/openssl
+        if [[ $HTTP3 == "y" ]]; then
+            echo "OpenSSL is not supported with HTTP/3"
+            exit 1
+        fi
+
+        git clone -b openssl-3.2.1 https://github.com/openssl/openssl.git || exit 1
         cd /tmp/nginx-installer/openssl || exit 1
 
         if [[ $SSL_FINGERPRINT == "y" ]]; then
-            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/openssl.openssl-3.2.patch -O openssl.openssl-3.2.patch || exit 1
-            patch -p1 < openssl.openssl-3.2.patch || exit 1
+            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/openssl.openssl-3.2.patch -O openssl.patch || exit 1
+            patch -p1 < openssl.patch || exit 1
+        fi
+        
+        ./config || exit 1
+    elif [[ $OPENSSL == "quic" ]]; then
+        git clone -b openssl-3.1.5+quic https://github.com/quictls/openssl.git || exit 1
+        cd /tmp/nginx-installer/openssl || exit 1
+
+        if [[ $SSL_FINGERPRINT == "y" ]]; then
+            wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/openssl-3.1.5+quic.patch -O openssl.patch || exit 1
+            patch -p1 < openssl.patch || exit 1
         fi
         
         ./config || exit 1
@@ -320,7 +369,14 @@ function install_nginx {
         )
     fi
 
-    if [[ $OPENSSL == "openssl" ]]; then
+    if [[ $HTTP3 == "y" ]]; then
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo --with-http_v3_module
+        )
+    fi
+
+    if [[ $OPENSSL == "openssl" || $OPENSSL == "quic" ]]; then
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
             echo --with-openssl=/tmp/nginx-installer/openssl
@@ -349,7 +405,8 @@ function install_nginx {
 
     ./auto/configure $NGINX_COMPILATION_OPTIONS \
         --with-cc-opt="-O -fno-omit-frame-pointer -Wno-deprecated-declarations -Wno-ignored-qualifiers" \
-        --with-ld-opt="-Wl,-rpath,/usr/local/lib/" || exit 1
+        --with-ld-opt="-Wl,-rpath,/usr/local/lib/" \
+        --with-cpu-opt=generic || exit 1
 
     make -j$(nproc) || exit 1
     make install || exit 1
@@ -434,8 +491,6 @@ function uninstall_nginx() {
 	# Removing Nginx files and modules files
 	rm -rf /usr/local/src/nginx \
 		/usr/sbin/nginx* \
-		/usr/local/bin/luajit* \
-		/usr/local/include/luajit* \
 		/etc/logrotate.d/nginx \
 		/var/cache/nginx \
 		/lib/systemd/system/nginx.service \
@@ -486,6 +541,7 @@ if [[ $1 == "--headless" ]]; then
     TEST_COOKIE=${TEST_COOKIE:-"n"}
     SUBSTITUTIONS_FILTER=${SUBSTITUTIONS_FILTER:-"n"}
     CACHE_PURGE=${CACHE_PURGE:-"n"}
+    HTTP3=${HTTP3:-"n"}
 
     # Uninstallation variables
     RM_CONF=${RM_CONF:-"y"}

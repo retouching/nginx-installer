@@ -12,7 +12,9 @@
 
 #### Modules and patches available:
 
-- [LibreSSL v3.8.2](https://github.com/libressl/portable) or [OpenSSL v3.2.1](https://github.com/openssl/openssl) from source
+- [LibreSSL v3.8.2](https://github.com/libressl/portable) from source
+- [OpenSSL v3.2.1](https://github.com/openssl/openssl) from source
+- [OpenSSL v3.1.5+quic](https://github.com/quictls/openssl) from source
 - [nginx-ssl-fingerprint](https://github.com/phuslu/nginx-ssl-fingerprint): high performance nginx module for ja3 and http2 fingerprint.
 - [ngx_brotli](ngx_brotli): Brotli compression algorithm
 - [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module): Custom HTTP headers
@@ -63,11 +65,12 @@ HEADER_MORE=n
 # y: install
 # n: skip
 SSL_FINGERPRINT=n
+# 1: get openssl
+# 1: get openssl+quic
+# 3: get libressl
+OPENSSL=1
 # y: install
 # n: skip
-OPENSSL=openssl
-# 1: get openssl
-# 2: get libressl
 BROTLI=n
 # y: install
 # n: skip
@@ -78,6 +81,9 @@ SUBSTITUTIONS_FILTER=n
 # y: install
 # n: skip
 CACHE_PURGE=n
+# y: install
+# n: skip
+HTTP3=n
 
 # Uninstallation variables
 # y: remove configuration
