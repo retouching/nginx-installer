@@ -69,7 +69,7 @@ HEADER_MORE=n
 # n: skip
 SSL_FINGERPRINT=n
 # 1: get openssl
-# 1: get openssl+quic
+# 2: get openssl+quic
 # 3: get libressl
 OPENSSL=1
 # y: install
@@ -108,6 +108,14 @@ RM_LOGS=y
 
 ```sh
 MODE=1 NGINX_VERSION=2 SSL_FINGERPRINT=y HEADER_MORE=y ./nginx-installer.sh --headless
+```
+
+## Docker
+
+Docker image available on [Docker Hub](https://hub.docker.com/r/retouching/nginx). Includes all modules with OpenSSL v3.1.5 + QUIC (because this is the only one who have SSL fingerprint and HTTP/3 support).
+
+```sh
+docker run -d -p 80:5000 -v /my-sites:/etc/nginx/site-enabled retouch1ng/nginx
 ```
 
 ## Credits

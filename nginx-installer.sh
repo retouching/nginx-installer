@@ -189,6 +189,11 @@ function modules_menu {
 
 # Install NGINX function
 function install_nginx {
+    if [[ $HEADLESS != true ]]; then
+        nginx_version
+        modules_menu
+    fi
+
     case $OPENSSL in
         1)
             OPENSSL=openssl
@@ -461,6 +466,9 @@ function install_nginx {
     # remove debugging symbols
     strip -s /usr/sbin/nginx
 
+    # Sometimes NGINX fails to start because of missing user
+    useradd -s /bin/false nginx &> /dev/null
+
     if [[ ! -e /etc/nginx/nginx.conf ]]; then
 		mkdir -p /etc/nginx
 		cd /etc/nginx || exit 1
@@ -468,7 +476,7 @@ function install_nginx {
 	fi
 
     # Create NGINX service if not exists
-    if [[ ! -e /lib/systemd/system/nginx.service ]]; then
+    if [[ ! -e /lib/systemd/system/nginx.service && $DOCKER_GEN != "y" ]]; then
         cd /lib/systemd/system/ || exit 1
         wget https://raw.githubusercontent.com/retouching/nginx-installer/master/configs/nginx.service -O nginx.service || exit 1
         systemctl enable nginx
@@ -499,13 +507,22 @@ function install_nginx {
     # Cleanup
     rm -rf /tmp/nginx-installer
 
-    systemctl restart nginx
+    if [[ $DOCKER_GEN == "y" ]]; then
+        nginx -t  &> /dev/null
 
-    SERVICE_STATUS=$(systemctl is-active nginx)
+        if [[ $? != 0 ]]; then
+            echo "An error occurred while installing NGINX"
+            exit 1
+        fi
+    else
+        systemctl restart nginx
 
-    if [[ $SERVICE_STATUS != "active" ]]; then
-        echo "An error occurred while installing NGINX"
-        exit 1
+        SERVICE_STATUS=$(systemctl is-active nginx)
+
+        if [[ $SERVICE_STATUS != "active" ]]; then
+            echo "An error occurred while installing NGINX"
+            exit 1
+        fi
     fi
 
     # Block installation via apt
@@ -574,7 +591,7 @@ function update_script() {
 }
 
 # Define variables if script is in headless mode
-if [[ $1 == "--headless" ]]; then
+if [[ $1 == "--headless" || $DOCKER_GEN == "y" ]]; then
     HEADLESS=true
     
     MODE=${MODE:-"1"}
@@ -604,8 +621,6 @@ clear
 
 case $MODE in
 1)
-    nginx_version
-    modules_menu
     install_nginx
     ;;
 2)
