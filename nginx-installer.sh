@@ -131,6 +131,16 @@ function modules_menu {
         read -rp "    Support HTTP/3: [y/n]: " -e -i "n" HTTP3
     done
 
+    # Cookie flag
+    while [[ $COOKIE_FLAG != "y" && $COOKIE_FLAG != "n" ]]; do
+        read -rp "    Cookie flag: [y/n]: " -e -i "n" COOKIE_FLAG
+    done
+
+    # NAXSI
+    while [[ $NAXSI != "y" && $NAXSI != "n" ]]; do
+        read -rp "    NAXSI: [y/n]: " -e -i "n" NAXSI
+    done
+
     echo ""
     echo "*************************************************"
 
@@ -280,6 +290,20 @@ function install_nginx {
         cd /tmp/nginx-installer/ngx_cache_purge || exit 1
     fi
 
+    # Download cookie flag
+    if [[ $COOKIE_FLAG == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone https://github.com/AirisX/nginx_cookie_flag_module.git
+        cd /tmp/nginx-installer/nginx_cookie_flag_module || exit 1
+    fi
+
+    # Download NAXSI
+    if [[ $NAXSI == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone --recurse-submodules https://github.com/wargio/naxsi.git
+        cd /tmp/nginx-installer/naxsi || exit 1
+    fi
+
     # Download OpenSSL
     cd /tmp/nginx-installer || exit 1
     if [[ $OPENSSL == "openssl" ]]; then
@@ -373,6 +397,20 @@ function install_nginx {
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
             echo --with-http_v3_module
+        )
+    fi
+
+    if [[ $NAXSI == "y" ]]; then
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo "--add-module=/tmp/nginx-installer/naxsi/naxsi_src"
+        )
+    fi
+
+    if [[ $COOKIE_FLAG == "y" ]]; then
+        NGINX_COMPILATION_OPTIONS=$(
+            echo "$NGINX_COMPILATION_OPTIONS"
+            echo "--add-module=/tmp/nginx-installer/nginx_cookie_flag_module"
         )
     fi
 
@@ -542,6 +580,8 @@ if [[ $1 == "--headless" ]]; then
     SUBSTITUTIONS_FILTER=${SUBSTITUTIONS_FILTER:-"n"}
     CACHE_PURGE=${CACHE_PURGE:-"n"}
     HTTP3=${HTTP3:-"n"}
+    COOKIE_FLAG=${COOKIE_FLAG:-"n"}
+    NAXSI=${NAXSI:-"n"}
 
     # Uninstallation variables
     RM_CONF=${RM_CONF:-"y"}

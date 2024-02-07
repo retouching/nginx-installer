@@ -15,12 +15,15 @@
 - [LibreSSL v3.8.2](https://github.com/libressl/portable) from source
 - [OpenSSL v3.2.1](https://github.com/openssl/openssl) from source
 - [OpenSSL v3.1.5+quic](https://github.com/quictls/openssl) from source
+- HTTP/3 Support (with LibreSSL or Quic)
 - [nginx-ssl-fingerprint](https://github.com/phuslu/nginx-ssl-fingerprint): high performance nginx module for ja3 and http2 fingerprint.
 - [ngx_brotli](ngx_brotli): Brotli compression algorithm
 - [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module): Custom HTTP headers
 - [testcookie-nginx-module](https://github.com/kyprizel/testcookie-nginx-module): simple robot mitigation module using cookie based challenge/response
 - [nginx_substitutions_filter](https://github.com/yaoweibin/ngx_http_substitutions_filter_module): filter module which can do both reguar expression and fixed string substitutions on response bodies
 - [ngx_cache_purge](https://github.com/FRiCKLE/ngx_cache_purge): adds ability to purge content from FastCGI, proxy, SCGI and uWSGI caches.
+- [nginx_cookie_flag_module](https://github.com/AirisX/nginx_cookie_flag_module): allows to set the flags "HttpOnly", "secure" and "SameSite" for cookies.
+- [NAXSI](https://github.com/wargio/naxsi): open-source, high performance, low rules maintenance WAF for NGINX
 
 And more can be added in the future...
 
@@ -84,6 +87,12 @@ CACHE_PURGE=n
 # y: install
 # n: skip
 HTTP3=n
+# y: install
+# n: skip
+COOKIE_FLAG=n
+# y: install
+# n: skip
+NAXSI=n
 
 # Uninstallation variables
 # y: remove configuration
