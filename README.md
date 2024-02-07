@@ -21,9 +21,10 @@
 - [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module): Custom HTTP headers
 - [testcookie-nginx-module](https://github.com/kyprizel/testcookie-nginx-module): simple robot mitigation module using cookie based challenge/response
 - [nginx_substitutions_filter](https://github.com/yaoweibin/ngx_http_substitutions_filter_module): filter module which can do both reguar expression and fixed string substitutions on response bodies
-- [ngx_cache_purge](https://github.com/FRiCKLE/ngx_cache_purge): adds ability to purge content from FastCGI, proxy, SCGI and uWSGI caches.
+- [ngx_cache_purge](https://github.com/nginx-modules/ngx_cache_purge): adds ability to purge content from FastCGI, proxy, SCGI and uWSGI caches.
 - [nginx_cookie_flag_module](https://github.com/AirisX/nginx_cookie_flag_module): allows to set the flags "HttpOnly", "secure" and "SameSite" for cookies.
 - [NAXSI](https://github.com/wargio/naxsi): open-source, high performance, low rules maintenance WAF for NGINX
+- [ngx_http_tls_dyn_size](https://github.com/nginx-modules/ngx_http_tls_dyn_size): Optimizing TLS over TCP to reduce latency for NGINX
 
 And more can be added in the future...
 
@@ -93,6 +94,9 @@ COOKIE_FLAG=n
 # y: install
 # n: skip
 NAXSI=n
+# y: install
+# n: skip
+TLS_DYN_SIZE=n
 
 # Uninstallation variables
 # y: remove configuration

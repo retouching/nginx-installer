@@ -145,6 +145,11 @@ function modules_menu {
         read -rp "    NAXSI: [y/n]: " -e -i "n" NAXSI
     done
 
+    # TLS Dyn Size
+    while [[ $TLS_DYN_SIZE != "y" && $TLS_DYN_SIZE != "n" ]]; do
+        read -rp "    Dynamic TLS: [y/n]: " -e -i "n" TLS_DYN_SIZE
+    done
+
     echo ""
     echo "*************************************************"
 
@@ -295,7 +300,7 @@ function install_nginx {
     # Download cache purge
     if [[ $CACHE_PURGE == "y" ]]; then
         cd /tmp/nginx-installer || exit 1
-        git clone https://github.com/FRiCKLE/ngx_cache_purge.git
+        git clone https://github.com/nginx-modules/ngx_cache_purge.git
         cd /tmp/nginx-installer/ngx_cache_purge || exit 1
     fi
 
@@ -445,11 +450,25 @@ function install_nginx {
     git clone -b release-$NGINX_VERSION https://github.com/nginx/nginx.git
     cd /tmp/nginx-installer/nginx || exit 1
 
-    if [[ $SSL_FINGERPRINT == "y" ]]; then
-        if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
-            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.25.patch -O nginx.patch || exit 1
+    if [[ $TLS_DYN_SIZE == "y" || $SSL_FINGERPRINT == "y" ]]; then
+        if [[ $SSL_FINGERPRINT == "y" && $TLS_DYN_SIZE != "y" ]]; then
+            if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
+                wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.25.patch -O nginx.patch || exit 1
+            else
+                wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.24.patch -O nginx.patch || exit 1
+            fi
+        elif [[ $SSL_FINGERPRINT == "n" && $TLS_DYN_SIZE != "y" ]]; then
+            if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
+                wget https://raw.githubusercontent.com/nginx-modules/ngx_http_tls_dyn_size/master/nginx__dynamic_tls_records_1.25.1%2B.patch -O nginx.patch || exit 1
+            else
+                wget https://raw.githubusercontent.com/nginx-modules/ngx_http_tls_dyn_size/master/nginx__dynamic_tls_records_1.17.7%2B.patch -O nginx.patch || exit 1
+            fi
         else
-            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.24.patch -O nginx.patch || exit 1
+            if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
+                wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/nginx-tls_dyn_size_ssl_fingerprint-1.25.patch -O nginx.patch || exit 1
+            else
+                wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/nginx-tls_dyn_size_ssl_fingerprint-1.24.patch -O nginx.patch || exit 1
+            fi
         fi
 
         patch -p1 < nginx.patch || exit 1
@@ -608,6 +627,7 @@ if [[ $1 == "--headless" || $DOCKER_GEN == "y" ]]; then
     HTTP3=${HTTP3:-"n"}
     COOKIE_FLAG=${COOKIE_FLAG:-"n"}
     NAXSI=${NAXSI:-"n"}
+    TLS_DYN_SIZE=${TLS_DYN_SIZE:-"n"}
 
     # Uninstallation variables
     RM_CONF=${RM_CONF:-"y"}
