@@ -157,7 +157,7 @@ function modules_menu {
 
     echo "    2) OpenSSL 3.1.5 + QUIC"
 
-    if [[ $SSL_FINGERPRINT != "y"]]; then
+    if [[ $SSL_FINGERPRINT != "y" ]]; then
         echo "    3) LibreSSL 3.8.2"
     else
         echo "    3) LibreSSL 3.8.2 [Not compatible with SSL fingerprint]"
@@ -165,7 +165,7 @@ function modules_menu {
 
     echo ""
 
-    while ; do
+    while :; do
         read -rp "Choice: [1-3]: " -e -i "1" OPENSSL
 
         if [[ $SSL_FINGERPRINT == "y" && $OPENSSL == "3" ]]; then
@@ -326,7 +326,7 @@ function install_nginx {
         cd /tmp/nginx-installer/openssl || exit 1
 
         if [[ $SSL_FINGERPRINT == "y" ]]; then
-            wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/openssl-3.1.5+quic.patch -O openssl.patch || exit 1
+            wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/openssl-3.1.5%2Bquic.patch -O openssl.patch || exit 1
             patch -p1 < openssl.patch || exit 1
         fi
         
