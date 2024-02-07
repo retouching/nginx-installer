@@ -126,10 +126,14 @@ function modules_menu {
         read -rp "    Cache purge: [y/n]: " -e -i "n" CACHE_PURGE
     done
 
-    # HTTP3
-    while [[ $HTTP3 != "y" && $HTTP3 != "n" ]]; do
-        read -rp "    Support HTTP/3: [y/n]: " -e -i "n" HTTP3
-    done
+    if [[ $NGINX_VERSION == "1" ]]; then
+        # HTTP3
+        while [[ $HTTP3 != "y" && $HTTP3 != "n" ]]; do
+            read -rp "    Support HTTP/3: [y/n]: " -e -i "n" HTTP3
+        done
+    else
+        HTTP3="n"
+    fi
 
     # Cookie flag
     while [[ $COOKIE_FLAG != "y" && $COOKIE_FLAG != "n" ]]; do
@@ -394,6 +398,11 @@ function install_nginx {
     fi
 
     if [[ $HTTP3 == "y" ]]; then
+        if [[ $NGINX_VERSION == $NGINX_STABLE_VERSION ]]; then
+            echo "HTTP/3 is not supported with NGINX stable"
+            exit 1
+        fi
+
         NGINX_COMPILATION_OPTIONS=$(
             echo "$NGINX_COMPILATION_OPTIONS"
             echo --with-http_v3_module
