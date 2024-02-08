@@ -1,4 +1,4 @@
-FROM ubuntu:23.10 as builder
+FROM ubuntu:23.10
 
 ENV MODE="1"
 ENV NGINX_VERSION="1"

@@ -10,7 +10,7 @@ NGINX_MAINLINE_VERSION="1.25.3"
 NGINX_STABLE_VERSION="1.24.0"
 LIBRESSL_VERSION="3.8.2"
 OPENSSL_VERSION="3.2.1"
-CURRENT_SCRIPT_VERSION="0.4"
+CURRENT_SCRIPT_VERSION="0.5"
 
 # Define NGINX compilation options
 NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
@@ -444,6 +444,16 @@ function install_nginx {
             echo --with-openssl=/tmp/nginx-installer/libressl
         )
     fi
+
+    # Add ZLib
+    cd /tmp/nginx-installer || exit 1
+    git clone https://github.com/madler/zlib.git
+    cd /tmp/nginx-installer/zlib || exit 1
+
+    NGINX_COMPILATION_OPTIONS=$(
+        echo "$NGINX_COMPILATION_OPTIONS"
+        echo "--with-zlib=/tmp/nginx-installer/zlib"
+    )
 
     # Download NGINX from sources
     cd /tmp/nginx-installer || exit 1
