@@ -11,9 +11,10 @@ NGINX_STABLE_VERSION="1.24.0"
 LIBRESSL_VERSION="3.8.2"
 OPENSSL_VERSION="3.2.1"
 CURRENT_SCRIPT_VERSION="0.5"
+CURRENT_SCRIPT_VERSION_NAME="dream"
 
 # Define NGINX compilation options
-NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
+NGINX_COMPILATION_PARAMS=${NGINX_COMPILATION_PARAMS:-"
     --prefix=/etc/nginx \
     --sbin-path=/usr/sbin/nginx \
     --conf-path=/etc/nginx/nginx.conf \
@@ -24,6 +25,8 @@ NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
     --http-client-body-temp-path=/var/cache/nginx/client_temp \
     --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
     --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+    --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+    --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
     --user=nginx \
     --group=nginx \
 
@@ -32,7 +35,6 @@ NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
     --with-file-aio \
     --with-http_ssl_module \
     --with-http_v2_module \
-    --with-http_mp4_module \
     --with-http_auth_request_module \
     --with-http_slice_module \
     --with-http_stub_status_module \
@@ -40,7 +42,8 @@ NGINX_COMPILATION_OPTIONS=${NGINX_COMPILATION_OPTIONS:-"
     --with-http_sub_module \
     --with-stream_ssl_module \
     --with-debug \
-    --with-stream
+    --with-stream \
+    --with-compat
 "}
 
 # Main menu
@@ -150,43 +153,73 @@ function modules_menu {
         read -rp "    Dynamic TLS: [y/n]: " -e -i "n" TLS_DYN_SIZE
     done
 
+    # Zlib
+    while [[ $ZLIB != "y" && $ZLIB != "n" ]]; do
+        read -rp "    ZLIB and GZIP compression: [y/n]: " -e -i "n" ZLIB
+    done
+
+    if [[ $HTTP3 == "y" && $SSL_FINGERPRINT == "y" ]]; then
+        OPENSSL="2"
+    else
+        echo ""
+        echo "*************************************************"
+
+        # OpenSSL package to use
+        echo ""
+        echo "OpenSSL package to use:"
+        echo ""
+        
+        if [[ $HTTP3 != "y" ]]; then
+            echo "    1) OpenSSL 3.2.1"
+        else
+            echo "    1) OpenSSL 3.2.1 [Not compatible with HTTP/3]"
+        fi
+
+        echo "    2) OpenSSL 3.1.5 + QUIC"
+
+        if [[ $SSL_FINGERPRINT != "y" ]]; then
+            echo "    3) LibreSSL 3.8.2"
+        else
+            echo "    3) LibreSSL 3.8.2 [Not compatible with SSL fingerprint]"
+        fi
+
+        echo ""
+
+        while :; do
+            read -rp "Choice: [1-3]: " -e -i "1" OPENSSL
+
+            if [[ $SSL_FINGERPRINT == "y" && $OPENSSL == "3" ]]; then
+                continue
+            fi
+
+            if [[ $HTTP3 == "y" && $OPENSSL == "1" ]]; then
+                continue
+            fi
+
+            break
+        done
+
+        echo ""
+        echo "*************************************************"
+    fi
+
+    # Compilation flags
     echo ""
     echo "*************************************************"
 
     # OpenSSL package to use
     echo ""
-    echo "OpenSSL package to use:"
+    echo "Compilation parameters to use, default to:"
     echo ""
-    
-    if [[ $HTTP3 != "y" ]]; then
-        echo "    1) OpenSSL 3.2.1"
-    else
-        echo "    1) OpenSSL 3.2.1 [Not compatible with HTTP/3]"
-    fi
-
-    echo "    2) OpenSSL 3.1.5 + QUIC"
-
-    if [[ $SSL_FINGERPRINT != "y" ]]; then
-        echo "    3) LibreSSL 3.8.2"
-    else
-        echo "    3) LibreSSL 3.8.2 [Not compatible with SSL fingerprint]"
-    fi
-
+    echo $NGINX_COMPILATION_PARAMS
     echo ""
 
-    while :; do
-        read -rp "Choice: [1-3]: " -e -i "1" OPENSSL
+    read -rp "Choice: (empty to keep default): " -e -i "" NGINX_COMPILATION_PARAMS_CHOOSED
+    NGINX_COMPILATION_PARAMS_CHOOSED=`echo $NGINX_COMPILATION_PARAMS_CHOOSED | sed -e 's/^[[:space:]]*//'`
 
-        if [[ $SSL_FINGERPRINT == "y" && $OPENSSL == "3" ]]; then
-            continue
-        fi
-
-        if [[ $HTTP3 == "y" && $OPENSSL == "1" ]]; then
-            continue
-        fi
-
-        break
-    done
+    if [[ ! -z $NGINX_COMPILATION_PARAMS_CHOOSED ]]; then
+        NGINX_COMPILATION_PARAMS=$NGINX_COMPILATION_PARAMS_CHOOSED
+    fi
 
     echo ""
     echo "*************************************************"
@@ -364,45 +397,52 @@ function install_nginx {
         make install-strip -j "$(nproc)" || exit 1
     fi
 
+    # Download zlib
+    if [[ $ZLIB == "y" ]]; then
+        cd /tmp/nginx-installer || exit 1
+        git clone https://github.com/madler/zlib.git
+        cd /tmp/nginx-installer/zlib || exit 1
+    fi
+
     # Apply modules to NGINX compilation options
     if [[ $HEADER_MORE == "y" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/headers-more-nginx-module"
         )
     fi
 
     if [[ $SSL_FINGERPRINT == "y" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/nginx-ssl-fingerprint"
         )
     fi
 
     if [[ $BROTLI == "y" ]]; then
-		NGINX_COMPILATION_OPTIONS=$(
-			echo "$NGINX_COMPILATION_OPTIONS"
+		NGINX_COMPILATION_PARAMS=$(
+			echo "$NGINX_COMPILATION_PARAMS"
 			echo "--add-module=/tmp/nginx-installer/ngx_brotli"
 		)
 	fi
 
     if [[ $TEST_COOKIE == "y" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/testcookie-nginx-module"
         )
     fi
 
     if [[ $SUBSTITUTIONS_FILTER == "y" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/ngx_http_substitutions_filter_module"
         )
     fi
 
     if [[ $CACHE_PURGE == "y" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/ngx_cache_purge"
         )
     fi
@@ -413,47 +453,44 @@ function install_nginx {
             exit 1
         fi
 
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo --with-http_v3_module
         )
     fi
 
     if [[ $NAXSI == "y" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/naxsi/naxsi_src"
         )
     fi
 
     if [[ $COOKIE_FLAG == "y" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/nginx_cookie_flag_module"
         )
     fi
 
     if [[ $OPENSSL == "openssl" || $OPENSSL == "quic" ]]; then
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo --with-openssl=/tmp/nginx-installer/openssl
         )
     else
-        NGINX_COMPILATION_OPTIONS=$(
-            echo "$NGINX_COMPILATION_OPTIONS"
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
             echo --with-openssl=/tmp/nginx-installer/libressl
         )
     fi
 
-    # Add ZLib
-    cd /tmp/nginx-installer || exit 1
-    git clone https://github.com/madler/zlib.git
-    cd /tmp/nginx-installer/zlib || exit 1
-
-    NGINX_COMPILATION_OPTIONS=$(
-        echo "$NGINX_COMPILATION_OPTIONS"
-        echo "--with-zlib=/tmp/nginx-installer/zlib"
-    )
+    if [[ $ZLIB == "y" ]]; then
+        NGINX_COMPILATION_PARAMS=$(
+            echo "$NGINX_COMPILATION_PARAMS"
+            echo "--with-zlib=/tmp/nginx-installer/zlib"
+        )
+    fi
 
     # Download NGINX from sources
     cd /tmp/nginx-installer || exit 1
@@ -484,7 +521,8 @@ function install_nginx {
         patch -p1 < nginx.patch || exit 1
     fi
 
-    ./auto/configure $NGINX_COMPILATION_OPTIONS \
+    ./auto/configure $NGINX_COMPILATION_PARAMS \
+        --build="nginx v$NGINX_VERSION [$CURRENT_SCRIPT_VERSION_NAME edition]" \
         --with-cc-opt="-O -fno-omit-frame-pointer -Wno-deprecated-declarations -Wno-ignored-qualifiers" \
         --with-ld-opt="-Wl,-rpath,/usr/local/lib/" \
         --with-cpu-opt=generic || exit 1
@@ -638,6 +676,7 @@ if [[ $1 == "--headless" || $DOCKER_GEN == "y" ]]; then
     COOKIE_FLAG=${COOKIE_FLAG:-"n"}
     NAXSI=${NAXSI:-"n"}
     TLS_DYN_SIZE=${TLS_DYN_SIZE:-"n"}
+    ZLIB=${ZLIB:-"n"}
 
     # Uninstallation variables
     RM_CONF=${RM_CONF:-"y"}

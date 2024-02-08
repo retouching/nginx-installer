@@ -25,6 +25,8 @@
 - [nginx_cookie_flag_module](https://github.com/AirisX/nginx_cookie_flag_module): allows to set the flags "HttpOnly", "secure" and "SameSite" for cookies.
 - [NAXSI](https://github.com/wargio/naxsi): open-source, high performance, low rules maintenance WAF for NGINX
 - [ngx_http_tls_dyn_size](https://github.com/nginx-modules/ngx_http_tls_dyn_size): Optimizing TLS over TCP to reduce latency for NGINX
+- [ngx_http_gzip_module](https://nginx.org/en/docs/http/ngx_http_gzip_module.html): compresses responses using the “gzip” method.
+
 
 And more can be added in the future...
 
@@ -97,6 +99,41 @@ NAXSI=n
 # y: install
 # n: skip
 TLS_DYN_SIZE=n
+# y: install
+# n: skip
+ZLIB=n
+# custom NGINX compile params
+NGINX_COMPILATION_PARAMS="
+    --prefix=/etc/nginx \
+    --sbin-path=/usr/sbin/nginx \
+    --conf-path=/etc/nginx/nginx.conf \
+    --error-log-path=/var/log/nginx/error.log \
+    --http-log-path=/var/log/nginx/access.log \
+    --pid-path=/var/run/nginx.pid \
+    --lock-path=/var/run/nginx.lock \
+    --http-client-body-temp-path=/var/cache/nginx/client_temp \
+    --http-proxy-temp-path=/var/cache/nginx/proxy_temp \
+    --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp \
+    --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp \
+    --http-scgi-temp-path=/var/cache/nginx/scgi_temp \
+    --user=nginx \
+    --group=nginx \
+
+    --with-threads \
+    --with-poll_module \
+    --with-file-aio \
+    --with-http_ssl_module \
+    --with-http_v2_module \
+    --with-http_auth_request_module \
+    --with-http_slice_module \
+    --with-http_stub_status_module \
+    --with-http_realip_module \
+    --with-http_sub_module \
+    --with-stream_ssl_module \
+    --with-debug \
+    --with-stream \
+    --with-compat
+"
 
 # Uninstallation variables
 # y: remove configuration
