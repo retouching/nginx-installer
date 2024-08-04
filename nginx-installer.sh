@@ -69,7 +69,7 @@ function main_menu {
     echo ""
 
     while [[ $MODE != "1" && $MODE != "2" && $MODE != "3" && $MODE != "4" ]]; do
-        read -rp "Choose an option to start: [1-5]: " -e -i "1" MODE
+        read -rp "Choose an option to start: [1-4]: " -e -i "1" MODE
     done
 
     echo ""
@@ -504,7 +504,7 @@ function install_nginx {
             else
                 wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.24.patch -O nginx.patch || exit 1
             fi
-        elif [[ $SSL_FINGERPRINT == "n" && $TLS_DYN_SIZE != "y" ]]; then
+        elif [[ $SSL_FINGERPRINT == "n" && $TLS_DYN_SIZE != "n" ]]; then
             if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
                 wget https://raw.githubusercontent.com/nginx-modules/ngx_http_tls_dyn_size/master/nginx__dynamic_tls_records_1.25.1%2B.patch -O nginx.patch || exit 1
             else
