@@ -6,12 +6,12 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Versions
-NGINX_MAINLINE_VERSION="1.25.3"
-NGINX_STABLE_VERSION="1.24.0"
-LIBRESSL_VERSION="3.8.2"
-OPENSSL_VERSION="3.2.1"
-CURRENT_SCRIPT_VERSION="0.6"
-CURRENT_SCRIPT_VERSION_NAME="dream"
+NGINX_MAINLINE_VERSION="1.27.3"
+NGINX_STABLE_VERSION="1.26.2"
+LIBRESSL_VERSION="4.0.0"
+OPENSSL_VERSION="3.4.0"
+CURRENT_SCRIPT_VERSION="0.7"
+CURRENT_SCRIPT_VERSION_NAME="kitauji"
 
 # Define NGINX compilation options
 NGINX_COMPILATION_PARAMS=${NGINX_COMPILATION_PARAMS:-"
@@ -43,7 +43,8 @@ NGINX_COMPILATION_PARAMS=${NGINX_COMPILATION_PARAMS:-"
     --with-stream_ssl_module \
     --with-debug \
     --with-stream \
-    --with-compat
+    --with-compat \
+    --with-http_v3_module
 "}
 
 # Main menu
@@ -104,11 +105,6 @@ function modules_menu {
         read -rp "    Header more: [y/n]: " -e -i "n" HEADER_MORE
     done
 
-    # SSL fingerprint
-    while [[ $SSL_FINGERPRINT != "y" && $SSL_FINGERPRINT != "n" ]]; do
-        read -rp "    SSL fingerprint: [y/n]: " -e -i "n" SSL_FINGERPRINT
-    done
-
     # Brotli
     while [[ $BROTLI != "y" && $BROTLI != "n" ]]; do
         read -rp "    Brotli: [y/n]: " -e -i "n" BROTLI
@@ -128,15 +124,6 @@ function modules_menu {
     while [[ $CACHE_PURGE != "y" && $CACHE_PURGE != "n" ]]; do
         read -rp "    Cache purge: [y/n]: " -e -i "n" CACHE_PURGE
     done
-
-    if [[ $NGINX_VERSION == "1" ]]; then
-        # HTTP3
-        while [[ $HTTP3 != "y" && $HTTP3 != "n" ]]; do
-            read -rp "    Support HTTP/3: [y/n]: " -e -i "n" HTTP3
-        done
-    else
-        HTTP3="n"
-    fi
 
     # Cookie flag
     while [[ $COOKIE_FLAG != "y" && $COOKIE_FLAG != "n" ]]; do
@@ -158,50 +145,26 @@ function modules_menu {
         read -rp "    ZLIB and GZIP compression: [y/n]: " -e -i "n" ZLIB
     done
 
-    if [[ $HTTP3 == "y" && $SSL_FINGERPRINT == "y" ]]; then
-        OPENSSL="2"
-    else
-        echo ""
-        echo "*************************************************"
+    echo ""
+    echo "*************************************************"
 
-        # OpenSSL package to use
-        echo ""
-        echo "OpenSSL package to use:"
-        echo ""
-        
-        if [[ $HTTP3 != "y" ]]; then
-            echo "    1) OpenSSL 3.2.1"
-        else
-            echo "    1) OpenSSL 3.2.1 [Not compatible with HTTP/3]"
-        fi
+    # OpenSSL package to use
+    echo ""
+    echo "OpenSSL package to use:"
+    echo ""
 
-        echo "    2) OpenSSL 3.1.5 + QUIC"
+    echo "    1) LibreSSL $LIBRESSL_VERSION"
+    echo "    2) OpenSSL $OPENSSL_VERSION"
 
-        if [[ $SSL_FINGERPRINT != "y" ]]; then
-            echo "    3) LibreSSL 3.8.2"
-        else
-            echo "    3) LibreSSL 3.8.2 [Not compatible with SSL fingerprint]"
-        fi
+    echo ""
 
-        echo ""
+    while :; do
+        read -rp "Choice: [1-2]: " -e -i "1" OPENSSL
+        break
+    done
 
-        while :; do
-            read -rp "Choice: [1-3]: " -e -i "1" OPENSSL
-
-            if [[ $SSL_FINGERPRINT == "y" && $OPENSSL == "3" ]]; then
-                continue
-            fi
-
-            if [[ $HTTP3 == "y" && $OPENSSL == "1" ]]; then
-                continue
-            fi
-
-            break
-        done
-
-        echo ""
-        echo "*************************************************"
-    fi
+    echo ""
+    echo "*************************************************"
 
     # Compilation flags
     echo ""
@@ -234,13 +197,10 @@ function install_nginx {
 
     case $OPENSSL in
         1)
-            OPENSSL=openssl
+            OPENSSL=libressl
             ;;
         2)
-            OPENSSL=quic
-            ;;
-        3)
-            OPENSSL=libressl
+            OPENSSL=openssl
             ;;
         *)
             echo "Invalid choice"
@@ -290,13 +250,6 @@ function install_nginx {
         cd /tmp/nginx-installer || exit 1
         git clone https://github.com/openresty/headers-more-nginx-module.git
         cd /tmp/nginx-installer/headers-more-nginx-module || exit 1
-    fi
-
-    # Download SSL fingerprint
-    if [[ $SSL_FINGERPRINT == "y" ]]; then
-        cd /tmp/nginx-installer || exit 1
-        git clone https://github.com/phuslu/nginx-ssl-fingerprint.git
-        cd /tmp/nginx-installer/nginx-ssl-fingerprint || exit 1
     fi
 
     # Download Brotli
@@ -354,37 +307,12 @@ function install_nginx {
     # Download OpenSSL
     cd /tmp/nginx-installer || exit 1
     if [[ $OPENSSL == "openssl" ]]; then
-        if [[ $HTTP3 == "y" ]]; then
-            echo "OpenSSL is not supported with HTTP/3"
-            exit 1
-        fi
-
-        git clone -b openssl-3.2.1 https://github.com/openssl/openssl.git || exit 1
+        git clone -b openssl-3.4.0 https://github.com/openssl/openssl.git || exit 1
         cd /tmp/nginx-installer/openssl || exit 1
-
-        if [[ $SSL_FINGERPRINT == "y" ]]; then
-            wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/openssl.openssl-3.2.patch -O openssl.patch || exit 1
-            patch -p1 < openssl.patch || exit 1
-        fi
-        
-        ./config || exit 1
-    elif [[ $OPENSSL == "quic" ]]; then
-        git clone -b openssl-3.1.5+quic https://github.com/quictls/openssl.git || exit 1
-        cd /tmp/nginx-installer/openssl || exit 1
-
-        if [[ $SSL_FINGERPRINT == "y" ]]; then
-            wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/openssl-3.1.5%2Bquic.patch -O openssl.patch || exit 1
-            patch -p1 < openssl.patch || exit 1
-        fi
         
         ./config || exit 1
     else
-        if [[ $SSL_FINGERPRINT == "y" ]]; then
-            echo "LibreSSL is not supported with SSL fingerprint"
-            exit 1
-        fi
-
-        git clone -b v3.8.2 https://github.com/libressl/portable
+        git clone -b v4.0.0 https://github.com/libressl/portable
         cd /tmp/nginx-installer/portable || exit 1
         cd ../ && mv portable libressl && cd libressl || exit 1
         ./autogen.sh || exit 1
@@ -409,13 +337,6 @@ function install_nginx {
         NGINX_COMPILATION_PARAMS=$(
             echo "$NGINX_COMPILATION_PARAMS"
             echo "--add-module=/tmp/nginx-installer/headers-more-nginx-module"
-        )
-    fi
-
-    if [[ $SSL_FINGERPRINT == "y" ]]; then
-        NGINX_COMPILATION_PARAMS=$(
-            echo "$NGINX_COMPILATION_PARAMS"
-            echo "--add-module=/tmp/nginx-installer/nginx-ssl-fingerprint"
         )
     fi
 
@@ -447,18 +368,6 @@ function install_nginx {
         )
     fi
 
-    if [[ $HTTP3 == "y" ]]; then
-        if [[ $NGINX_VERSION == $NGINX_STABLE_VERSION ]]; then
-            echo "HTTP/3 is not supported with NGINX stable"
-            exit 1
-        fi
-
-        NGINX_COMPILATION_PARAMS=$(
-            echo "$NGINX_COMPILATION_PARAMS"
-            echo --with-http_v3_module
-        )
-    fi
-
     if [[ $NAXSI == "y" ]]; then
         NGINX_COMPILATION_PARAMS=$(
             echo "$NGINX_COMPILATION_PARAMS"
@@ -473,7 +382,7 @@ function install_nginx {
         )
     fi
 
-    if [[ $OPENSSL == "openssl" || $OPENSSL == "quic" ]]; then
+    if [[ $OPENSSL == "openssl" ]]; then
         NGINX_COMPILATION_PARAMS=$(
             echo "$NGINX_COMPILATION_PARAMS"
             echo --with-openssl=/tmp/nginx-installer/openssl
@@ -497,32 +406,18 @@ function install_nginx {
     git clone -b release-$NGINX_VERSION https://github.com/nginx/nginx.git
     cd /tmp/nginx-installer/nginx || exit 1
 
-    if [[ $TLS_DYN_SIZE == "y" || $SSL_FINGERPRINT == "y" ]]; then
-        if [[ $SSL_FINGERPRINT == "y" && $TLS_DYN_SIZE != "y" ]]; then
-            if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
-                wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.25.patch -O nginx.patch || exit 1
-            else
-                wget https://raw.githubusercontent.com/phuslu/nginx-ssl-fingerprint/master/patches/nginx-1.24.patch -O nginx.patch || exit 1
-            fi
-        elif [[ $SSL_FINGERPRINT == "n" && $TLS_DYN_SIZE != "n" ]]; then
-            if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
-                wget https://raw.githubusercontent.com/nginx-modules/ngx_http_tls_dyn_size/master/nginx__dynamic_tls_records_1.25.1%2B.patch -O nginx.patch || exit 1
-            else
-                wget https://raw.githubusercontent.com/nginx-modules/ngx_http_tls_dyn_size/master/nginx__dynamic_tls_records_1.17.7%2B.patch -O nginx.patch || exit 1
-            fi
+    if [[ $TLS_DYN_SIZE == "y" ]]; then
+        if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
+            wget https://raw.githubusercontent.com/nginx-modules/ngx_http_tls_dyn_size/master/nginx__dynamic_tls_records_1.27.2%2B.patch -O nginx.patch || exit 1
         else
-            if [[ $NGINX_VERSION == $NGINX_MAINLINE_VERSION ]]; then
-                wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/nginx-tls_dyn_size_ssl_fingerprint-1.25.patch -O nginx.patch || exit 1
-            else
-                wget https://raw.githubusercontent.com/retouching/nginx-installer/master/patches/nginx-tls_dyn_size_ssl_fingerprint-1.24.patch -O nginx.patch || exit 1
-            fi
+            wget https://raw.githubusercontent.com/nginx-modules/ngx_http_tls_dyn_size/master/nginx__dynamic_tls_records_1.25.1%2B.patch -O nginx.patch || exit 1
         fi
 
         patch -p1 < nginx.patch || exit 1
     fi
 
     ./auto/configure $NGINX_COMPILATION_PARAMS \
-        --build="nginx v$NGINX_VERSION [$CURRENT_SCRIPT_VERSION_NAME edition]" \
+        --build="$CURRENT_SCRIPT_VERSION_NAME edition" \
         --with-cc-opt="-O -fno-omit-frame-pointer -Wno-deprecated-declarations -Wno-ignored-qualifiers" \
         --with-ld-opt="-Wl,-rpath,/usr/local/lib/" \
         --with-cpu-opt=generic || exit 1

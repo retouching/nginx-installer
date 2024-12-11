@@ -6,17 +6,17 @@
 
 ## Features
 
-- Mainline or stable version from [source](https://github.com/nginx/nginx)
+- Mainline (1.27.3) or stable (1.26.2) version from [source](https://github.com/nginx/nginx)
 - Multiples modules and patch available
 - Block NGINX installation using APT to avoid conflicts
 
 #### Modules and patches available:
 
-- [LibreSSL v3.8.2](https://github.com/libressl/portable) from source
-- [OpenSSL v3.2.1](https://github.com/openssl/openssl) from source
-- [OpenSSL v3.1.5+quic](https://github.com/quictls/openssl) from source
-- HTTP/3 Support (with LibreSSL or Quic) [Only available with NGINX mainline](https://nginx.org/en/docs/quic.html)
-- [nginx-ssl-fingerprint](https://github.com/phuslu/nginx-ssl-fingerprint): high performance nginx module for ja3 and http2 fingerprint.
+- [LibreSSL v4.0.0](https://github.com/libressl/portable) from source
+- [OpenSSL v3.4.1](https://github.com/openssl/openssl) from source
+- ~~[OpenSSL v3.1.5+quic](https://github.com/quictls/openssl) from source~~ Quic now included in nginx!
+- ~~HTTP/3 Support (with LibreSSL or Quic) [Only available with NGINX mainline](https://nginx.org/en/docs/quic.html)~~
+- ~~[nginx-ssl-fingerprint](https://github.com/phuslu/nginx-ssl-fingerprint): high performance nginx module for ja3 and http2 fingerprint.~~
 - [ngx_brotli](ngx_brotli): Brotli compression algorithm
 - [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module): Custom HTTP headers
 - [testcookie-nginx-module](https://github.com/kyprizel/testcookie-nginx-module): simple robot mitigation module using cookie based challenge/response
@@ -132,7 +132,8 @@ NGINX_COMPILATION_PARAMS="
     --with-stream_ssl_module \
     --with-debug \
     --with-stream \
-    --with-compat
+    --with-compat\
+    --with-http_v3_module
 "
 
 # Uninstallation variables
